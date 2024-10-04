@@ -134,6 +134,11 @@ func init() {
 		`[{{.GetRepo.GetFullName}}#{{.GetPullRequest.GetNumber}}]({{.GetPullRequest.GetHTMLURL}})`,
 	))
 
+	// The eventPullRequest links to the corresponding pull request, anchored at the repo.
+	template.Must(masterTemplate.New("eventPullRequest").Parse(
+		`[{{.GetPullRequest.GetTitle}}#{{.GetPullRequest.GetNumber}}]({{.GetPullRequest.GetHTMLURL}})`,
+	))
+
 	template.Must(masterTemplate.New("eventRepoPullRequestWithTitle").Parse(
 		`{{template "eventRepoPullRequest" .}} - {{.GetPullRequest.GetTitle}}`,
 	))
@@ -199,16 +204,14 @@ Assignees: {{range $i, $el := .Assignees -}} {{- if $i}}, {{end}}{{template "use
 `))
 
 	template.Must(masterTemplate.New("newDraftPR").Funcs(funcMap).Parse(`
-{{template "repo" .Event.GetRepo}} New draft pull request {{template "pullRequest" .Event.GetPullRequest}} was opened by {{template "user" .Event.GetSender}}.
+New draft pull request {{template "pullRequest" .Event.GetPullRequest}} was opened by {{template "user" .Event.GetSender}}.
 `))
 
 	template.Must(masterTemplate.New("newPR").Funcs(funcMap).Parse(`
 {{ if eq .Config.Style "collapsed" -}}
 {{template "repo" .Event.GetRepo}} New pull request {{template "pullRequest" .Event.GetPullRequest}} was opened by {{template "user" .Event.GetSender}}.
 {{- else -}}
-#### {{.Event.GetPullRequest.GetTitle}}
-##### {{template "eventRepoPullRequest" .Event}}
-#new-pull-request by {{template "user" .Event.GetSender}}
+{{template "eventPullRequest" .Event}}
 {{- if ne .Config.Style "skip-body" -}}
 {{- template "labels" dict "Labels" .Event.GetPullRequest.Labels "RepositoryURL" .Event.GetRepo.GetHTMLURL  }}
 {{- template "assignee" .Event.GetPullRequest }}
@@ -222,9 +225,7 @@ Assignees: {{range $i, $el := .Assignees -}} {{- if $i}}, {{end}}{{template "use
 {{ if eq .Config.Style "collapsed" -}}
 {{template "repo" .Event.GetRepo}} Pull request {{template "pullRequest" .Event.GetPullRequest}} was marked ready for review by {{template "user" .Event.GetSender}}.
 {{- else -}}
-#### {{.Event.GetPullRequest.GetTitle}}
-##### {{template "eventRepoPullRequest" .Event}}
-#new-pull-request by {{template "user" .Event.GetSender}}
+{{template "eventPullRequest" .Event}}
 {{- if ne .Config.Style "skip-body" -}}
 {{- template "labels" dict "Labels" .Event.GetPullRequest.Labels "RepositoryURL" .Event.GetRepo.GetHTMLURL  }}
 {{- template "assignee" .Event.GetPullRequest }}
@@ -235,14 +236,15 @@ Assignees: {{range $i, $el := .Assignees -}} {{- if $i}}, {{end}}{{template "use
 `))
 
 	template.Must(masterTemplate.New("closedPR").Funcs(funcMap).Parse(`
-{{template "repo" .GetRepo}} Pull request {{template "pullRequest" .GetPullRequest}} was
-{{- if .GetPullRequest.GetMerged }} merged
-{{- else }} closed
-{{- end }} by {{template "user" .GetSender}}.
+{{template "pullRequest" .GetPullRequest}} **was closed by {{template "user" .GetSender}}.**
+`))
+
+	template.Must(masterTemplate.New("mergedPR").Funcs(funcMap).Parse(`
+{{template "pullRequest" .GetPullRequest}} **was merged by {{template "user" .GetSender}}.**
 `))
 
 	template.Must(masterTemplate.New("reopenedPR").Funcs(funcMap).Parse(`
-{{template "repo" .GetRepo}} Pull request {{template "pullRequest" .GetPullRequest}} was reopened by {{template "user" .GetSender}}.
+{{template "pullRequest" .GetPullRequest}} **was reopened by {{template "user" .GetSender}}.**
 `))
 
 	template.Must(masterTemplate.New("pullRequestLabelled").Funcs(funcMap).Parse(`
@@ -293,31 +295,33 @@ Assignees: {{range $i, $el := .Assignees -}} {{- if $i}}, {{end}}{{template "use
 `))
 
 	template.Must(masterTemplate.New("newCreateMessage").Funcs(funcMap).Parse(`
-{{template "repo" .GetRepo}} {{.GetRefType}} [{{.GetRef}}]({{.GetRepo.GetHTMLURL}}/tree/{{.GetRef}}) created by {{template "user" .GetSender}}
+{{.GetRefType}} [{{.GetRef}}]({{.GetRepo.GetHTMLURL}}/tree/{{.GetRef}}) created by {{template "user" .GetSender}}
 `))
 
 	template.Must(masterTemplate.New("newDeleteMessage").Funcs(funcMap).Parse(`
-{{template "repo" .GetRepo}} {{.GetRefType}} {{.GetRef}} deleted by {{template "user" .GetSender}}
+{{.GetRefType}} {{.GetRef}} deleted by {{template "user" .GetSender}}
 `))
 
+	template.Must(masterTemplate.New("commentLink").Funcs(funcMap).Parse(`[comment]({{.GetHTMLURL}})`))
+
 	template.Must(masterTemplate.New("issueComment").Funcs(funcMap).Parse(`
-{{template "repo" .GetRepo}} New comment by {{template "user" .GetSender}} on {{template "issue" .Issue}}:
+New {{template "commentLink" .GetComment}} by {{template "user" .GetSender}} on {{template "issue" .Issue}}:
 
 {{.GetComment.GetBody | trimBody | replaceAllGitHubUsernames}}
 `))
 
 	template.Must(masterTemplate.New("pullRequestReviewEvent").Funcs(funcMap).Parse(`
-{{template "repo" .GetRepo}} {{template "user" .GetSender}}
+{{template "user" .GetSender}}
 {{- if eq .GetReview.GetState "approved"}} approved
-{{- else if eq .GetReview.GetState "commented"}} commented on
+{{- else if eq .GetReview.GetState "commented"}} [commented]({{.GetReview.GetHTMLURL}}) on
 {{- else if eq .GetReview.GetState "changes_requested"}} requested changes on
-{{- end }} {{template "pullRequest" .GetPullRequest}}:
+{{- end }} {{template "pullRequest" .GetPullRequest}}
 
 {{.Review.GetBody | replaceAllGitHubUsernames}}
 `))
 
 	template.Must(masterTemplate.New("newReviewComment").Funcs(funcMap).Parse(`
-{{template "repo" .GetRepo}} New review comment by {{template "user" .GetSender}} on {{template "pullRequest" .GetPullRequest}}:
+New review {{template "commentLink" .GetComment}} by {{template "user" .GetSender}} on {{template "pullRequest" .GetPullRequest}}:
 
 {{.GetComment.GetBody | trimBody | replaceAllGitHubUsernames}}
 `))
@@ -328,17 +332,17 @@ Assignees: {{range $i, $el := .Assignees -}} {{- if $i}}, {{end}}{{template "use
 `))
 
 	template.Must(masterTemplate.New("commentAuthorPullRequestNotification").Funcs(funcMap).Parse(`
-{{template "user" .GetSender}} commented on your pull request {{template "eventRepoIssueFullLinkWithTitle" .}}:
+{{template "user" .GetSender}} [commented]({{.GetComment.GetHTMLURL}}) on your pull request {{template "eventRepoIssueFullLinkWithTitle" .}}:
 {{.GetComment.GetBody | trimBody | quote | replaceAllGitHubUsernames}}
 `))
 
 	template.Must(masterTemplate.New("commentAssigneePullRequestNotification").Funcs(funcMap).Parse(`
-{{template "user" .GetSender}} commented on pull request you are assigned to {{template "eventRepoIssueFullLinkWithTitle" .}}:
+{{template "user" .GetSender}} [commented]({{.GetComment.GetHTMLURL}}) on pull request you are assigned to {{template "eventRepoIssueFullLinkWithTitle" .}}:
 {{.GetComment.GetBody | trimBody | quote | replaceAllGitHubUsernames}}
 `))
 
 	template.Must(masterTemplate.New("commentAssigneeIssueNotification").Funcs(funcMap).Parse(`
-{{template "user" .GetSender}} commented on an issue you are assigned to {{template "eventRepoIssueFullLinkWithTitle" .}}:
+{{template "user" .GetSender}} [commented]({{.GetComment.GetHTMLURL}}) on an issue you are assigned to {{template "eventRepoIssueFullLinkWithTitle" .}}:
 {{.GetComment.GetBody | trimBody | quote | replaceAllGitHubUsernames}}
 `))
 
@@ -353,7 +357,7 @@ Assignees: {{range $i, $el := .Assignees -}} {{- if $i}}, {{end}}{{template "use
 `))
 
 	template.Must(masterTemplate.New("commentAuthorIssueNotification").Funcs(funcMap).Parse(`
-{{template "user" .GetSender}} commented on your issue {{template "eventRepoIssueFullLinkWithTitle" .}}:
+{{template "user" .GetSender}} [commented]({{.GetComment.GetHTMLURL}}) on your issue {{template "eventRepoIssueFullLinkWithTitle" .}}:
 {{.GetComment.GetBody | trimBody | quote | replaceAllGitHubUsernames}}
 `))
 
@@ -381,7 +385,7 @@ Assignees: {{range $i, $el := .Assignees -}} {{- if $i}}, {{end}}{{template "use
 {{template "user" .GetSender}}
 {{- if eq .GetReview.GetState "approved" }} approved your pull request
 {{- else if eq .GetReview.GetState "changes_requested" }} requested changes on your pull request
-{{- else if eq .GetReview.GetState "commented" }} commented on your pull request
+{{- else if eq .GetReview.GetState "commented" }} [commented]({{.GetReview.GetHTMLURL}}) on your pull request
 {{- end }} {{template "reviewRepoPullRequestWithTitle" .}}
 {{if .GetReview.GetBody}}{{.Review.GetBody | trimBody | quote | replaceAllGitHubUsernames}}
 {{else}}{{end}}`))
@@ -431,14 +435,13 @@ Assignees: {{range $i, $el := .Assignees -}} {{- if $i}}, {{end}}{{template "use
 		"  * `/github mute delete-all` - unmute all GitHub users\n"))
 
 	template.Must(masterTemplate.New("newRepoStar").Funcs(funcMap).Parse(`
-{{template "repo" .GetRepo}}
-{{- if eq .GetAction "created" }} starred
-{{- else }} unstarred
+{{- if eq .GetAction "created" }}starred
+{{- else }}unstarred
 {{- end }} by {{template "user" .GetSender}}
 It now has **{{.GetRepo.GetStargazersCount}}** stars.`))
 
 	template.Must(masterTemplate.New("newReleaseEvent").Funcs(funcMap).Parse(`
-{{template "repo" .GetRepo}} {{template "user" .GetSender}}
+{{template "user" .GetSender}}
 {{- if eq .GetAction "created" }} created a release {{template "release" .GetRelease}}
 {{- else if eq .GetAction "deleted" }} deleted a release {{template "release" .GetRelease}}
 {{- end -}}`))
@@ -448,7 +451,7 @@ It now has **{{.GetRepo.GetStargazersCount}}** stars.`))
 `))
 
 	template.Must(masterTemplate.New("newDiscussionComment").Funcs(funcMap).Parse(`
-{{template "repo" .GetRepo}} New comment by {{template "user" .GetSender}} on discussion [#{{.GetDiscussion.GetNumber}} {{.GetDiscussion.GetTitle}}]({{.GetDiscussion.GetHTMLURL}}):
+New {{template "comment"}} by {{template "user" .GetSender}} on discussion [#{{.GetDiscussion.GetNumber}} {{.GetDiscussion.GetTitle}}]({{.GetDiscussion.GetHTMLURL}}):
 
 {{.GetComment.GetBody | trimBody | replaceAllGitHubUsernames}}
 `))
