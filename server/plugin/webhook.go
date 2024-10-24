@@ -35,11 +35,21 @@ const (
 	postPropGithubRepo       = "gh_repo"
 	postPropGithubObjectID   = "gh_object_id"
 	postPropGithubObjectType = "gh_object_type"
+	postPropAttachments      = "attachments"
 
 	githubObjectTypeIssue             = "issue"
 	githubObjectTypeIssueComment      = "issue_comment"
 	githubObjectTypePRReviewComment   = "pr_review_comment"
 	githubObjectTypeDiscussionComment = "discussion_comment"
+
+	green     = "#238636"
+	darkGray  = "#323336"
+	gray      = "#63666e"
+	lightGray = "#acb0bd"
+	violet    = "#8957e5"
+	red       = "#da3633"
+	lightBlue = "#a8bcf0"
+	blue      = "#333596"
 )
 
 // RenderConfig holds various configuration options to be used in a template
@@ -382,16 +392,11 @@ func (p *Plugin) postPullRequestEvent(event *github.PullRequestEvent) {
 
 	pr := event.GetPullRequest()
 	isPRInDraftState := pr.GetDraft()
+	isPRMerged := pr.GetMerged()
 	eventLabel := event.GetLabel().GetName()
 	labels := make([]string, len(pr.Labels))
 	for i, v := range pr.Labels {
 		labels[i] = v.GetName()
-	}
-
-	closedPRMessage, err := renderTemplate("closedPR", event)
-	if err != nil {
-		p.client.Log.Warn("Failed to render template", "error", err.Error())
-		return
 	}
 
 	for _, sub := range subs {
@@ -449,16 +454,35 @@ func (p *Plugin) postPullRequestEvent(event *github.PullRequestEvent) {
 
 		if action == actionOpened {
 			prNotificationType := "newPR"
+			color := green
+			title := "Pull request was opened by"
+
 			if isPRInDraftState {
 				prNotificationType = "newDraftPR"
+				color = lightGray
+				title = "Draft pull request was opened"
 			}
+
 			newPRMessage, err := renderTemplate(prNotificationType, GetEventWithRenderConfig(event, sub))
-			if err != nil {
+			newPRAuthor, errAuthor := renderTemplate("user", event.GetSender())
+
+			if err != nil || errAuthor != nil {
 				p.client.Log.Warn("Failed to render template", "error", err.Error())
 				return
 			}
 
-			post.Message = p.sanitizeDescription(newPRMessage)
+			attachment := &model.SlackAttachment{
+				Color:      color,
+				Text:       p.sanitizeDescription(newPRMessage) + " from branch `" + event.GetPullRequest().GetHead().GetRef() + "` to `" + event.GetPullRequest().GetBase().GetRef() + "`",
+				Title:      title + " " + newPRAuthor,
+				Fallback:   p.sanitizeDescription(newPRMessage),
+				AuthorName: event.GetSender().GetLogin(),
+				AuthorIcon: event.GetSender().GetAvatarURL(),
+				Footer:     event.GetRepo().GetFullName(),
+				FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+			}
+
+			post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
 		}
 
 		if action == actionReopened {
@@ -468,7 +492,18 @@ func (p *Plugin) postPullRequestEvent(event *github.PullRequestEvent) {
 				return
 			}
 
-			post.Message = p.sanitizeDescription(reopenedPRMessage)
+			attachment := &model.SlackAttachment{
+				Color:      green,
+				Text:       p.sanitizeDescription(reopenedPRMessage),
+				Title:      "Pull request",
+				Fallback:   p.sanitizeDescription(reopenedPRMessage),
+				AuthorName: event.GetSender().GetLogin(),
+				AuthorIcon: event.GetSender().GetAvatarURL(),
+				Footer:     event.GetRepo().GetFullName(),
+				FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+			}
+
+			post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
 		}
 
 		if action == actionMarkedReadyForReview {
@@ -478,11 +513,61 @@ func (p *Plugin) postPullRequestEvent(event *github.PullRequestEvent) {
 				return
 			}
 
-			post.Message = p.sanitizeDescription(markedReadyToReviewPRMessage)
+			attachment := &model.SlackAttachment{
+				Color:      green,
+				Text:       p.sanitizeDescription(markedReadyToReviewPRMessage) + " from branch `" + event.GetPullRequest().GetHead().GetRef() + "` to `" + event.GetPullRequest().GetBase().GetRef() + "`",
+				Title:      "Pull request is ready for review!",
+				Fallback:   p.sanitizeDescription(markedReadyToReviewPRMessage),
+				AuthorName: event.GetSender().GetLogin(),
+				AuthorIcon: event.GetSender().GetAvatarURL(),
+				Footer:     event.GetRepo().GetFullName(),
+				FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+			}
+
+			post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
 		}
 
 		if action == actionClosed {
-			post.Message = closedPRMessage
+			if isPRMerged {
+				mergedPRMessage, err := renderTemplate("mergedPR", event)
+
+				if err != nil {
+					p.client.Log.Warn("Failed to render template", "error", err.Error())
+					return
+				}
+
+				attachment := &model.SlackAttachment{
+					Color:      violet,
+					Text:       mergedPRMessage,
+					Title:      "Pull request was merged!",
+					Fallback:   mergedPRMessage,
+					AuthorName: event.GetSender().GetLogin(),
+					AuthorIcon: event.GetSender().GetAvatarURL(),
+					Footer:     event.GetRepo().GetFullName(),
+					FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+				}
+
+				post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
+			} else {
+				closedPRMessage, err := renderTemplate("closedPR", event)
+
+				if err != nil {
+					p.client.Log.Warn("Failed to render template", "error", err.Error())
+					return
+				}
+
+				attachment := &model.SlackAttachment{
+					Color:      red,
+					Text:       closedPRMessage,
+					Title:      "Pull request was closed!",
+					Fallback:   closedPRMessage,
+					AuthorName: event.GetSender().GetLogin(),
+					AuthorIcon: event.GetSender().GetAvatarURL(),
+					Footer:     event.GetRepo().GetFullName(),
+					FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+				}
+				post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
+			}
 		}
 
 		post.ChannelId = sub.ChannelID
@@ -542,7 +627,19 @@ func (p *Plugin) handlePRDescriptionMentionNotification(event *github.PullReques
 			continue
 		}
 
-		post := p.makeBotPost(message, "custom_git_mention")
+		post := p.makeBotPost("", "custom_git_mention")
+		attachment := &model.SlackAttachment{
+			Color:      gray,
+			Text:       message,
+			Title:      "New mention",
+			Fallback:   message,
+			AuthorName: event.GetSender().GetLogin(),
+			AuthorIcon: event.GetSender().GetAvatarURL(),
+			Footer:     event.GetRepo().GetFullName(),
+			FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+		}
+
+		post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
 		post.ChannelId = channel.Id
 
 		if err = p.client.Post.CreatePost(post); err != nil {
@@ -678,7 +775,18 @@ func (p *Plugin) postPushEvent(event *github.PushEvent) {
 			continue
 		}
 
-		post := p.makeBotPost(pushedCommitsMessage, "custom_git_push")
+		post := p.makeBotPost("", "custom_git_push")
+		attachment := &model.SlackAttachment{
+			Color:      darkGray,
+			Text:       pushedCommitsMessage,
+			Title:      "Commits pushed",
+			Fallback:   pushedCommitsMessage,
+			AuthorName: event.GetSender().GetLogin(),
+			AuthorIcon: event.GetSender().GetAvatarURL(),
+			Footer:     event.GetRepo().GetFullName(),
+			FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+		}
+		post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
 
 		post.ChannelId = sub.ChannelID
 		if err = p.client.Post.CreatePost(post); err != nil {
@@ -715,7 +823,19 @@ func (p *Plugin) postCreateEvent(event *github.CreateEvent) {
 			continue
 		}
 
-		post := p.makeBotPost(newCreateMessage, "custom_git_create")
+		post := p.makeBotPost("", "custom_git_create")
+
+		attachment := &model.SlackAttachment{
+			Color:      darkGray,
+			Text:       newCreateMessage,
+			Title:      strings.ToUpper(typ[:1]) + strings.ToLower(typ[1:]) + " created",
+			Fallback:   newCreateMessage,
+			AuthorName: event.GetSender().GetLogin(),
+			AuthorIcon: event.GetSender().GetAvatarURL(),
+			Footer:     event.GetRepo().GetFullName(),
+			FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+		}
+		post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
 
 		post.ChannelId = sub.ChannelID
 		if err = p.client.Post.CreatePost(post); err != nil {
@@ -754,8 +874,21 @@ func (p *Plugin) postDeleteEvent(event *github.DeleteEvent) {
 			continue
 		}
 
-		post := p.makeBotPost(newDeleteMessage, "custom_git_delete")
+		post := p.makeBotPost("", "custom_git_delete")
+		attachment := &model.SlackAttachment{
+			Color:      red,
+			Text:       newDeleteMessage,
+			Title:      strings.ToUpper(typ[:1]) + strings.ToLower(typ[1:]) + " was deleted",
+			Fallback:   newDeleteMessage,
+			AuthorName: event.GetSender().GetLogin(),
+			AuthorIcon: event.GetSender().GetAvatarURL(),
+			Footer:     event.GetRepo().GetFullName(),
+			FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+		}
+
+		post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
 		post.ChannelId = sub.ChannelID
+
 		if err = p.client.Post.CreatePost(post); err != nil {
 			p.client.Log.Warn("Error webhook post", "post", post, "error", err.Error())
 		}
@@ -809,6 +942,16 @@ func (p *Plugin) postIssueCommentEvent(event *github.IssueCommentEvent) {
 		}
 
 		post := p.makeBotPost("", "custom_git_comment")
+		attachment := &model.SlackAttachment{
+			Color:      gray,
+			Text:       message,
+			Title:      "Pull request commented",
+			Fallback:   message,
+			AuthorName: event.GetSender().GetLogin(),
+			AuthorIcon: event.GetSender().GetAvatarURL(),
+			Footer:     event.GetRepo().GetFullName(),
+			FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+		}
 
 		repoName := strings.ToLower(repo.GetFullName())
 		commentID := event.GetComment().GetID()
@@ -818,7 +961,7 @@ func (p *Plugin) postIssueCommentEvent(event *github.IssueCommentEvent) {
 		post.AddProp(postPropGithubObjectType, githubObjectTypeIssueComment)
 
 		if event.GetAction() == actionCreated {
-			post.Message = message
+			post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
 		}
 
 		post.ChannelId = sub.ChannelID
@@ -854,10 +997,19 @@ func (p *Plugin) postPullRequestReviewEvent(event *github.PullRequestReviewEvent
 		return
 	}
 
-	switch event.GetReview().GetState() {
+	eventState := event.GetReview().GetState()
+
+	color := green
+	title := "Pull request was approved!"
+
+	switch eventState {
 	case "approved":
 	case "commented":
+		color = darkGray
+		title = "Pull request commented"
 	case "changes_requested":
+		color = red
+		title = "Pull request changes requested!"
 	default:
 		p.client.Log.Debug("Unhandled review state", "state", event.GetReview().GetState())
 		return
@@ -896,7 +1048,19 @@ func (p *Plugin) postPullRequestReviewEvent(event *github.PullRequestReviewEvent
 			continue
 		}
 
-		post := p.makeBotPost(newReviewMessage, "custom_git_pull_review")
+		post := p.makeBotPost("", "custom_git_pull_review")
+
+		attachment := &model.SlackAttachment{
+			Color:      color,
+			Text:       newReviewMessage,
+			Title:      title,
+			Fallback:   newReviewMessage,
+			AuthorName: event.GetSender().GetLogin(),
+			AuthorIcon: event.GetSender().GetAvatarURL(),
+			Footer:     event.GetRepo().GetFullName(),
+			FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+		}
+		post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
 
 		post.ChannelId = sub.ChannelID
 		if err = p.client.Post.CreatePost(post); err != nil {
@@ -946,7 +1110,17 @@ func (p *Plugin) postPullRequestReviewCommentEvent(event *github.PullRequestRevi
 			continue
 		}
 
-		post := p.makeBotPost(newReviewMessage, "custom_git_pr_comment")
+		post := p.makeBotPost("", "custom_git_pr_comment")
+		attachment := &model.SlackAttachment{
+			Color:      gray,
+			Text:       newReviewMessage,
+			Title:      "Pull request commented",
+			Fallback:   newReviewMessage,
+			AuthorName: event.GetSender().GetLogin(),
+			AuthorIcon: event.GetSender().GetAvatarURL(),
+			Footer:     event.GetRepo().GetFullName(),
+			FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+		}
 
 		repoName := strings.ToLower(repo.GetFullName())
 		commentID := event.GetComment().GetID()
@@ -954,6 +1128,7 @@ func (p *Plugin) postPullRequestReviewCommentEvent(event *github.PullRequestRevi
 		post.AddProp(postPropGithubRepo, repoName)
 		post.AddProp(postPropGithubObjectID, commentID)
 		post.AddProp(postPropGithubObjectType, githubObjectTypePRReviewComment)
+		post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
 
 		post.ChannelId = sub.ChannelID
 		if err = p.client.Post.CreatePost(post); err != nil {
@@ -1023,7 +1198,18 @@ func (p *Plugin) handleCommentMentionNotification(event *github.IssueCommentEven
 			continue
 		}
 
-		post := p.makeBotPost(message, "custom_git_mention")
+		post := p.makeBotPost("", "custom_git_mention")
+		attachment := &model.SlackAttachment{
+			Color:      gray,
+			Text:       message,
+			Title:      "New mention",
+			Fallback:   message,
+			AuthorName: event.GetSender().GetLogin(),
+			AuthorIcon: event.GetSender().GetAvatarURL(),
+			Footer:     event.GetRepo().GetFullName(),
+			FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+		}
+		post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
 
 		post.ChannelId = channel.Id
 		if err = p.client.Post.CreatePost(post); err != nil {
@@ -1081,7 +1267,18 @@ func (p *Plugin) handleCommentAuthorNotification(event *github.IssueCommentEvent
 		return
 	}
 
-	p.CreateBotDMPost(authorUserID, message, "custom_git_author")
+	attachment := &model.SlackAttachment{
+		Color:      lightBlue,
+		Text:       message,
+		Title:      "New comment",
+		Fallback:   message,
+		AuthorName: event.GetSender().GetLogin(),
+		AuthorIcon: event.GetSender().GetAvatarURL(),
+		Footer:     event.GetRepo().GetFullName(),
+		FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+	}
+
+	p.CreateBotDMPost(authorUserID, message, "custom_git_author", []*model.SlackAttachment{attachment})
 	p.sendRefreshEvent(authorUserID)
 }
 
@@ -1159,7 +1356,19 @@ func (p *Plugin) handleCommentAssigneeNotification(event *github.IssueCommentEve
 			p.client.Log.Warn("Failed to render template", "error", err.Error())
 			continue
 		}
-		p.CreateBotDMPost(assigneeID, message, "custom_git_assignee")
+
+		attachment := &model.SlackAttachment{
+			Color:      gray,
+			Text:       message,
+			Title:      "New assignee",
+			Fallback:   message,
+			AuthorName: event.GetSender().GetLogin(),
+			AuthorIcon: event.GetSender().GetAvatarURL(),
+			Footer:     event.GetRepo().GetFullName(),
+			FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+		}
+
+		p.CreateBotDMPost(assigneeID, message, "custom_git_assignee", []*model.SlackAttachment{attachment})
 		p.sendRefreshEvent(assigneeID)
 	}
 }
@@ -1222,7 +1431,17 @@ func (p *Plugin) handlePullRequestNotification(event *github.PullRequestEvent) {
 	}
 
 	if len(requestedUserID) > 0 {
-		p.CreateBotDMPost(requestedUserID, message, "custom_git_review_request")
+		attachment := &model.SlackAttachment{
+			Color:      blue,
+			Text:       message,
+			Title:      "Review requested",
+			Fallback:   message,
+			AuthorName: event.GetSender().GetLogin(),
+			AuthorIcon: event.GetSender().GetAvatarURL(),
+			Footer:     event.GetRepo().GetFullName(),
+			FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+		}
+		p.CreateBotDMPost(requestedUserID, message, "custom_git_review_request", []*model.SlackAttachment{attachment})
 		p.sendRefreshEvent(requestedUserID)
 	}
 
@@ -1278,12 +1497,12 @@ func (p *Plugin) handleIssueNotification(event *github.IssuesEvent) {
 
 func (p *Plugin) postIssueNotification(message, authorUserID, assigneeUserID string) {
 	if len(authorUserID) > 0 {
-		p.CreateBotDMPost(authorUserID, message, "custom_git_author")
+		p.CreateBotDMPost(authorUserID, message, "custom_git_author", nil)
 		p.sendRefreshEvent(authorUserID)
 	}
 
 	if len(assigneeUserID) > 0 {
-		p.CreateBotDMPost(assigneeUserID, message, "custom_git_assigned")
+		p.CreateBotDMPost(assigneeUserID, message, "custom_git_assigned", nil)
 		p.sendRefreshEvent(assigneeUserID)
 	}
 }
@@ -1313,7 +1532,26 @@ func (p *Plugin) handlePullRequestReviewNotification(event *github.PullRequestRe
 		return
 	}
 
-	p.CreateBotDMPost(authorUserID, message, "custom_git_review")
+	color := green
+	switch event.GetReview().GetState() {
+	case "changes_requested":
+		color = red
+	case "commented":
+		color = gray
+	}
+
+	attachment := &model.SlackAttachment{
+		Color:      color,
+		Text:       message,
+		Title:      "Pull request review notification",
+		Fallback:   message,
+		AuthorName: event.GetSender().GetLogin(),
+		AuthorIcon: event.GetSender().GetAvatarURL(),
+		Footer:     event.GetRepo().GetFullName(),
+		FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+	}
+
+	p.CreateBotDMPost(authorUserID, message, "custom_git_review", []*model.SlackAttachment{attachment})
 	p.sendRefreshEvent(authorUserID)
 }
 
@@ -1381,12 +1619,19 @@ func (p *Plugin) postReleaseEvent(event *github.ReleaseEvent) {
 			continue
 		}
 
-		post := &model.Post{
-			UserId:    p.BotUserID,
-			Type:      "custom_git_release",
-			Message:   newReleaseMessage,
-			ChannelId: sub.ChannelID,
+		post := p.makeBotPost("", "custom_git_release")
+		attachment := &model.SlackAttachment{
+			Color:      green,
+			Text:       newReleaseMessage,
+			Title:      "New release",
+			Fallback:   newReleaseMessage,
+			AuthorName: event.GetSender().GetLogin(),
+			AuthorIcon: event.GetSender().GetAvatarURL(),
+			Footer:     event.GetRepo().GetFullName(),
+			FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
 		}
+
+		post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
 
 		if err = p.client.Post.CreatePost(post); err != nil {
 			p.client.Log.Warn("Error webhook post", "Post", post, "Error", err.Error())
@@ -1417,7 +1662,17 @@ func (p *Plugin) postDiscussionEvent(event *github.DiscussionEvent) {
 			continue
 		}
 
-		post := p.makeBotPost(newDiscussionMessage, "custom_git_discussion")
+		post := p.makeBotPost("", "custom_git_discussion")
+		attachment := &model.SlackAttachment{
+			Color:      gray,
+			Text:       newDiscussionMessage,
+			Title:      "Pull request discussion commented",
+			Fallback:   newDiscussionMessage,
+			AuthorName: event.GetSender().GetLogin(),
+			AuthorIcon: event.GetSender().GetAvatarURL(),
+			Footer:     event.GetRepo().GetFullName(),
+			FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+		}
 
 		repoName := strings.ToLower(repo.GetFullName())
 		discussionNumber := event.GetDiscussion().GetNumber()
@@ -1425,6 +1680,8 @@ func (p *Plugin) postDiscussionEvent(event *github.DiscussionEvent) {
 		post.AddProp(postPropGithubRepo, repoName)
 		post.AddProp(postPropGithubObjectID, discussionNumber)
 		post.AddProp(postPropGithubObjectType, "discussion")
+		post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
+
 		post.ChannelId = sub.ChannelID
 		if err = p.client.Post.CreatePost(post); err != nil {
 			p.client.Log.Warn("Error creating discussion notification post", "Post", post, "Error", err.Error())
@@ -1458,7 +1715,17 @@ func (p *Plugin) postDiscussionCommentEvent(event *github.DiscussionCommentEvent
 			continue
 		}
 
-		post := p.makeBotPost(newDiscussionCommentMessage, "custom_git_dis_comment")
+		post := p.makeBotPost("", "custom_git_dis_comment")
+		attachment := &model.SlackAttachment{
+			Color:      gray,
+			Text:       newDiscussionCommentMessage,
+			Title:      "Pull request discussion commented",
+			Fallback:   newDiscussionCommentMessage,
+			AuthorName: event.GetSender().GetLogin(),
+			AuthorIcon: event.GetSender().GetAvatarURL(),
+			Footer:     event.GetRepo().GetFullName(),
+			FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+		}
 
 		repoName := strings.ToLower(repo.GetFullName())
 		commentID := event.GetComment().GetID()
@@ -1466,6 +1733,7 @@ func (p *Plugin) postDiscussionCommentEvent(event *github.DiscussionCommentEvent
 		post.AddProp(postPropGithubRepo, repoName)
 		post.AddProp(postPropGithubObjectID, commentID)
 		post.AddProp(postPropGithubObjectType, githubObjectTypeDiscussionComment)
+		post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
 
 		post.ChannelId = sub.ChannelID
 		if err = p.client.Post.CreatePost(post); err != nil {
