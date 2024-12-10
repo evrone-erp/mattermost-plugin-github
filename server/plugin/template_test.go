@@ -423,7 +423,7 @@ func TestNewIssueTemplate(t *testing.T) {
 		expected := `
 #### Implement git-get-head
 ##### [mattermost-plugin-github#1](https://github.com/mattermost/mattermost-plugin-github/issues/1)
-#new-issue by [panda](https://github.com/panda)
+New issue by [panda](https://github.com/panda)
 
 git-get-head sounds like a great feature we should support
 `
@@ -444,7 +444,7 @@ git-get-head sounds like a great feature we should support
 		expected := `
 #### Implement git-get-head
 ##### [mattermost-plugin-github#1](https://github.com/mattermost/mattermost-plugin-github/issues/1)
-#new-issue by @pandabot
+New issue by @pandabot
 
 git-get-head sounds like a great feature we should support
 ` + usernameMentions + `
@@ -466,7 +466,7 @@ git-get-head sounds like a great feature we should support
 		expected := `
 #### Implement git-get-head
 ##### [mattermost-plugin-github#1](https://github.com/mattermost/mattermost-plugin-github/issues/1)
-#new-issue by [panda](https://github.com/panda)
+New issue by [panda](https://github.com/panda)
 Labels: ` + "[`Help Wanted`](https://github.com/mattermost/mattermost-plugin-github/labels/Help%20Wanted)" + `
 Assignees: [panda](https://github.com/panda)
 
@@ -489,7 +489,7 @@ git-get-head sounds like a great feature we should support
 		expected := `
 #### Implement git-get-head
 ##### [mattermost-plugin-github#1](https://github.com/mattermost/mattermost-plugin-github/issues/1)
-#new-issue by [panda](https://github.com/panda)
+New issue by [panda](https://github.com/panda)
 Labels: ` + "[`Help Wanted`](https://github.com/mattermost/mattermost-plugin-github/labels/Help%20Wanted), [`Tech/Go`](https://github.com/mattermost/mattermost-plugin-github/labels/Tech%2FGo)" + `
 Assignees: [panda](https://github.com/panda), [panda](https://github.com/panda)
 
@@ -510,7 +510,7 @@ git-get-head sounds like a great feature we should support
 
 	t.Run("with collapsed render style", func(t *testing.T) {
 		expected := `
-[\[mattermost-plugin-github\]](https://github.com/mattermost/mattermost-plugin-github) New issue [#1 Implement git-get-head](https://github.com/mattermost/mattermost-plugin-github/issues/1) opened by [panda](https://github.com/panda).
+New issue [#1 Implement git-get-head](https://github.com/mattermost/mattermost-plugin-github/issues/1) opened by [panda](https://github.com/panda).
 `
 
 		actual, err := renderTemplate("newIssue", &EventWithRenderConfig{
@@ -531,7 +531,7 @@ git-get-head sounds like a great feature we should support
 		expected := `
 #### Implement git-get-head
 ##### [mattermost-plugin-github#1](https://github.com/mattermost/mattermost-plugin-github/issues/1)
-#new-issue by [panda](https://github.com/panda)
+New issue by [panda](https://github.com/panda)
 `
 
 		actual, err := renderTemplate("newIssue", &EventWithRenderConfig{
@@ -551,7 +551,7 @@ git-get-head sounds like a great feature we should support
 
 func TestClosedIssueTemplate(t *testing.T) {
 	expected := `
-[\[mattermost-plugin-github\]](https://github.com/mattermost/mattermost-plugin-github) Issue [#1 Implement git-get-head](https://github.com/mattermost/mattermost-plugin-github/issues/1) closed by [panda](https://github.com/panda).
+Issue [#1 Implement git-get-head](https://github.com/mattermost/mattermost-plugin-github/issues/1) closed by [panda](https://github.com/panda).
 `
 
 	actual, err := renderTemplate("closedIssue", GetEventWithRenderConfig(
@@ -568,7 +568,7 @@ func TestClosedIssueTemplate(t *testing.T) {
 
 func TestReopenedIssueTemplate(t *testing.T) {
 	expected := `
-[\[mattermost-plugin-github\]](https://github.com/mattermost/mattermost-plugin-github) Issue [#1 Implement git-get-head](https://github.com/mattermost/mattermost-plugin-github/issues/1) reopened by [panda](https://github.com/panda).
+Issue [#1 Implement git-get-head](https://github.com/mattermost/mattermost-plugin-github/issues/1) reopened by [panda](https://github.com/panda).
 `
 
 	actual, err := renderTemplate("reopenedIssue", GetEventWithRenderConfig(
@@ -587,7 +587,7 @@ func TestIssueLabelledTemplate(t *testing.T) {
 	expected := `
 #### Implement git-get-head
 ##### [mattermost-plugin-github#1](https://github.com/mattermost/mattermost-plugin-github/issues/1)
-#issue-labeled ` + "`label-name`" + ` by [panda](https://github.com/panda).
+Issue labeled ` + "`label-name`" + ` by [panda](https://github.com/panda).
 `
 
 	actual, err := renderTemplate("issueLabelled", GetEventWithRenderConfig(
