@@ -113,6 +113,16 @@ func init() {
 		return commit.GetCommitter()
 	}
 
+	funcMap["workflowJobFailedStep"] = func(steps []*github.TaskStep) string {
+		for _, step := range steps {
+			if step.GetConclusion() == workflowJobFail {
+				return step.GetName()
+			}
+		}
+
+		return ""
+	}
+
 	masterTemplate = template.Must(template.New("master").Funcs(funcMap).Parse(""))
 
 	// The user template links to the corresponding GitHub user. If the GitHub user is a known
@@ -161,6 +171,11 @@ func init() {
 	// The issue links to the corresponding issue.
 	template.Must(masterTemplate.New("issue").Parse(
 		`[#{{.GetNumber}} {{.GetTitle}}]({{.GetHTMLURL}})`,
+	))
+
+	// The workflow job links to the corresponding workflow.
+	template.Must(masterTemplate.New("workflowJob").Parse(
+		`[{{.GetName}}]({{.GetHTMLURL}})`,
 	))
 
 	// The release links to the corresponding release.
@@ -416,6 +431,8 @@ New review {{template "commentLink" .GetComment}} by {{template "user" .GetSende
 		"    	* `issue_comments` - includes new issue comments\n" +
 		"    	* `issue_creations` - includes new issues only \n" +
 		"    	* `pull_reviews` - includes pull request reviews\n" +
+		"    	* `workflow_failure` - includes workflow job failure\n" +
+		"    	* `workflow_success` - includes workflow job success\n" +
 		"    	* `releases` - includes release created and deleted\n" +
 		"    	* `label:<labelname>` - limit pull request and issue events to only this label. Must include `pulls` or `issues` in feature list when using a label.\n" +
 		"    	* `discussions` - includes new discussions\n" +
@@ -439,6 +456,12 @@ New review {{template "commentLink" .GetComment}} by {{template "user" .GetSende
 {{- else }}unstarred
 {{- end }} by {{template "user" .GetSender}}
 It now has **{{.GetRepo.GetStargazersCount}}** stars.`))
+
+	template.Must(masterTemplate.New("newWorkflowJob").Funcs(funcMap).Parse(`
+{{template "repo" .GetRepo}} {{.GetWorkflowJob.GetWorkflowName}} workflow {{if eq .GetWorkflowJob.GetConclusion "success"}}succeeded{{else}}failed{{end}} (triggered by {{template "user" .GetSender}})
+{{if eq .GetWorkflowJob.GetConclusion "failure"}}Job failed: {{template "workflowJob" .GetWorkflowJob}}
+Step failed: {{.GetWorkflowJob.Steps | workflowJobFailedStep}}
+{{end}}Commit: {{.GetRepo.GetHTMLURL}}/commit/{{.GetWorkflowJob.GetHeadSHA}}`))
 
 	template.Must(masterTemplate.New("newReleaseEvent").Funcs(funcMap).Parse(`
 {{template "user" .GetSender}}
