@@ -274,11 +274,11 @@ New draft pull request {{template "pullRequest" .Event.GetPullRequest}} was open
 
 	template.Must(masterTemplate.New("newIssue").Funcs(funcMap).Parse(`
 {{ if eq .Config.Style "collapsed" -}}
-{{template "repo" .Event.GetRepo}} New issue {{template "issue" .Event.GetIssue}} opened by {{template "user" .Event.GetSender}}.
+New issue {{template "issue" .Event.GetIssue}} opened by {{template "user" .Event.GetSender}}.
 {{- else -}}
 #### {{.Event.GetIssue.GetTitle}}
 ##### {{template "eventRepoIssue" .Event}}
-#new-issue by {{template "user" .Event.GetSender}}
+New issue by {{template "user" .Event.GetSender}}
 {{- if ne .Config.Style "skip-body" -}}
 {{- template "labels" dict "Labels" .Event.GetIssue.Labels "RepositoryURL" .Event.GetRepo.GetHTMLURL  }}
 {{- template "assignee" .Event.GetIssue }}
@@ -289,17 +289,17 @@ New draft pull request {{template "pullRequest" .Event.GetPullRequest}} was open
 `))
 
 	template.Must(masterTemplate.New("closedIssue").Funcs(funcMap).Parse(`
-{{template "repo" .Event.GetRepo}} Issue {{template "issue" .Event.GetIssue}} closed by {{template "user" .Event.GetSender}}.
+Issue {{template "issue" .Event.GetIssue}} closed by {{template "user" .Event.GetSender}}.
 `))
 
 	template.Must(masterTemplate.New("issueLabelled").Funcs(funcMap).Parse(`
 #### {{.Event.GetIssue.GetTitle}}
 ##### {{template "eventRepoIssue" .Event}}
-#issue-labeled ` + "`{{.Event.GetLabel.GetName}}`" + ` by {{template "user" .Event.GetSender}}.
+Issue labeled ` + "`{{.Event.GetLabel.GetName}}`" + ` by {{template "user" .Event.GetSender}}.
 `))
 
 	template.Must(masterTemplate.New("reopenedIssue").Funcs(funcMap).Parse(`
-{{template "repo" .Event.GetRepo}} Issue {{template "issue" .Event.GetIssue}} reopened by {{template "user" .Event.GetSender}}.
+Issue {{template "issue" .Event.GetIssue}} reopened by {{template "user" .Event.GetSender}}.
 `))
 
 	template.Must(masterTemplate.New("pushedCommits").Funcs(funcMap).Parse(`
