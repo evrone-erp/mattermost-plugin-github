@@ -1041,8 +1041,12 @@ func (p *Plugin) postPullRequestReviewEvent(event *github.PullRequestReviewEvent
 	switch eventState {
 	case "approved":
 	case "commented":
+		// skip notification about empty review
+		if event.GetReview().GetBody() == "" {
+			return
+		}
 		color = darkGray
-		title = "Pull request commented"
+		title = "Pull request review comment"
 	case "changes_requested":
 		color = red
 		title = "Pull request changes requested!"
@@ -1107,6 +1111,11 @@ func (p *Plugin) postPullRequestReviewEvent(event *github.PullRequestReviewEvent
 
 func (p *Plugin) postPullRequestReviewCommentEvent(event *github.PullRequestReviewCommentEvent) {
 	repo := event.GetRepo()
+	action := event.GetAction()
+
+	if action == actionDeleted {
+		return
+	}
 
 	subs := p.GetSubscribedChannelsForRepository(repo)
 	if len(subs) == 0 {
