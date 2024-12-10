@@ -1,67 +1,80 @@
 # Mattermost GitHub Plugin
 
-[![Build Status](https://img.shields.io/circleci/project/github/mattermost/mattermost-plugin-github/master.svg)](https://circleci.com/gh/mattermost/mattermost-plugin-github)
-[![Code Coverage](https://img.shields.io/codecov/c/github/mattermost/mattermost-plugin-github/master.svg)](https://codecov.io/gh/mattermost/mattermost-plugin-github)
-[![Release](https://img.shields.io/github/v/release/mattermost/mattermost-plugin-github)](https://github.com/mattermost/mattermost-plugin-github/releases/latest)
-[![HW](https://img.shields.io/github/issues/mattermost/mattermost-plugin-github/Up%20For%20Grabs?color=dark%20green&label=Help%20Wanted)](https://github.com/mattermost/mattermost-plugin-github/issues?q=is%3Aissue+is%3Aopen+sort%3Aupdated-desc+label%3A%22Up+For+Grabs%22+label%3A%22Help+Wanted%22)
+This plugin is a fork of https://github.com/mattermost/mattermost-plugin-github with some improvements:
 
-A GitHub plugin for Mattermost. Supports GitHub SaaS and Enterprise versions.
+* attachments-like notifications appearance
+* links to pull request comments
+* information about branch names
 
-See the [Mattermost Product Documentation](https://docs.mattermost.com/integrate/github-interoperability.html) for details on installing, configuring, enabling, and using this Mattermost integration.
+## Features
+
+You can configure plugin to receive notifications about:
+* Branches: created, deleted
+* Pull Requests: opened, closed, reopened, ready for review, merged, commented, approved, changes requested
+* Issues: opened, closed, commented, labeled
+
+Also, you can receive personal notifications about:
+* Pull request review: commented, approved, changes requested, mentions
+
+## Getting started
+
+This plugin provides you with the ability to receive beautiful notifications about github actions in Mattermost
+
+### Upload plugin
+Go to [releases](https://github.com/evrone-erp/mattermost-plugin-github/releases) and download plugin file from release assets (it looks like github-1.0.0.tar.gz).
+Then upload this file to Mattermost. System Console / Plugin Management / Upload Plugin 
+
+### Create OAuth App in your Github organization
+* Go to https://github.com/organizations/[YOUR_ORGANIZATION]/settings/applications/new
+* Enter Application name. For example, Mattermost GitHub Plugin
+* Homepage URL: https://github.com/evrone-erp/mattermost-plugin-github
+* Authorization callback URL: `[YOUR_MATTERMOST_URL]/plugins/github/oauth/complete`
+* Press `Register App`
+* After that, you will see App page with `Client ID` and button `Generate a new client secret`. Generate and save secret, also save `Client ID`
+
+### Configure plugin in Mattermost console
+* Set `Enable plugin`, `Display Notification Counters in Left Sidebar` and `Enable Private Repositories` to `true` in System Console / Plugins / Github.
+* Fill `GitHub OAuth Client ID` with `Client ID` and `GitHub OAuth Client Secret` with `Client secret` from your Github OAuth App
+* Regenerate `Webhook Secret` and `At Rest Encryption Key`
+* Fill `GitHub Organizations` with your organization name. This field is optional, but if you left it empty, github counters at left panel of mattermost will not work
+* Don't forget to click `save` button
+
+### Create webhook in your Github organization
+You can create webhook in your Github organization or in organization repository.
+
+If you want to receive all notifications from all of you organization repositories in single mattermost channel, when better create organization webhook.
+But if you have mattermost channels for each repository, better to make webhooks in repositories, to simplify subscriptions
+* Go to `https://github.com/[YOUR_ORG_OR_REPO]/settings/hooks/new`
+* Fill Payload URL with `[YOUR_MATTERMOST_URL]/plugins/github/webhook`
+* Content type: application/json
+* Secret: you can find it in mattermost System Console / Plugins / Github `Webhook Secret` field
+* Select which events would you like to trigger
+* Press `Add webhook`
+* To make sure everything went well, go to /settings/hooks, find created hook and see `Last delivery was successful.`
+
+
+### Add subscriptions to mattermost channels
+* At first, connect you github with mattermost by command `/github connect private`
+* Then you need to add channel subscriptions using command `/github subscriptions add [REPOSITORY_LINK] --features [features]`. 
+`features` - Comma-delimited list of one or more of: `issues`, `pulls`, `pulls_merged`, `pulls_created`, `pushes`, `creates`, `deletes`, `issue_creations`, `issue_comments`, `pull_reviews`, `releases`, `workflow_success`, `workflow_failure`, `discussions`, `discussion_comments`, `label:"<labelname>"`. Defaults to `pulls,issues,creates,deletes`
+* Have fun :)
+
+### Personal settings
+For greater convenience, you can set up personal notifications and reminders by executing commands
+
+`/github settings notifications on` - notifications about your pull requests and mentions
+
+`/github settings reminders  on` - full list of Unread Messages, Review Requests, Your Open Pull Requests and Your Assignments once a day   
+
+More details about configuring, enabling, and using this Mattermost integration [Mattermost Product Documentation](https://docs.mattermost.com/integrate/github-interoperability.html)
+
+### Examples
+
+![img.png](img.png)
 
 ## Development
 
-This plugin contains both a server and web app portion. Read our documentation about the [Developer Workflow](https://developers.mattermost.com/integrate/plugins/developer-workflow/) and [Developer Setup](https://developers.mattermost.com/integrate/plugins/developer-setup/) for more information about developing and extending plugins.
+This plugin contains both a server and web app portion. Read documentation about the [Developer Workflow](https://developers.mattermost.com/integrate/plugins/developer-workflow/) and [Developer Setup](https://developers.mattermost.com/integrate/plugins/developer-setup/) for more information about developing and extending plugins.
 
-### Releasing new versions
 
-The version of a plugin is determined at compile time, automatically populating a `version` field in the [plugin manifest](plugin.json):
-* If the current commit matches a tag, the version will match after stripping any leading `v`, e.g. `1.3.1`.
-* Otherwise, the version will combine the nearest tag with `git rev-parse --short HEAD`, e.g. `1.3.1+d06e53e1`.
-* If there is no version tag, an empty version will be combined with the short hash, e.g. `0.0.0+76081421`.
-
-To disable this behaviour, manually populate and maintain the `version` field.
-
-## How to Release
-
-To trigger a release, follow these steps:
-
-1. **For Patch Release:** Run the following command:
-    ```
-    make patch
-    ```
-   This will release a patch change.
-
-2. **For Minor Release:** Run the following command:
-    ```
-    make minor
-    ```
-   This will release a minor change.
-
-3. **For Major Release:** Run the following command:
-    ```
-    make major
-    ```
-   This will release a major change.
-
-4. **For Patch Release Candidate (RC):** Run the following command:
-    ```
-    make patch-rc
-    ```
-   This will release a patch release candidate.
-
-5. **For Minor Release Candidate (RC):** Run the following command:
-    ```
-    make minor-rc
-    ```
-   This will release a minor release candidate.
-
-6. **For Major Release Candidate (RC):** Run the following command:
-    ```
-    make major-rc
-    ```
-   This will release a major release candidate.
-
-### Playwright e2e tests
-
-In order to get your environment set up to run [Playwright](https://playwright.dev) tests, please see the setup guide at [e2e/playwright](/e2e/playwright#readme).
+[<img src="https://evrone.com/logo/evrone-sponsored-logo.png" width=231>](https://evrone.com/?utm_source=github&utm_medium=mattermost-plugin-github)
