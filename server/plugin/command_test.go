@@ -280,7 +280,7 @@ func TestExecuteCommand(t *testing.T) {
 	}{
 		"about command": {
 			commandArgs:    &model.CommandArgs{Command: "/github about"},
-			expectedMsg:    "GitHub version",
+			expectedMsg:    "GitHub (Evrone) version",
 			SetupMockStore: func(mks *mocks.MockKvStore) {},
 		},
 
