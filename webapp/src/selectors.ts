@@ -7,7 +7,7 @@ import {GithubIssueData, SidebarData, PrsDetailsData, UnreadsData} from './types
 
 const emptyArray: GithubIssueData[] | UnreadsData[] = [];
 
-export const getPluginState = (state: GlobalState): PluginState => state['plugins-github'];
+export const getPluginState = (state: GlobalState): PluginState => state['plugins-github_evrone'];
 
 export const getServerRoute = (state: GlobalState) => {
     const config = getConfig(state);
