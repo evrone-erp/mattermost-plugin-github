@@ -682,18 +682,28 @@ func (p *Plugin) postIssueEvent(event *github.IssuesEvent) {
 	}
 
 	issueTemplate := ""
+	color := darkGray
+	title := ""
+
 	switch action {
 	case actionOpened:
 		issueTemplate = "newIssue"
+		title = "New Issue"
 
 	case actionClosed:
 		issueTemplate = "closedIssue"
+		color = red
+		title = "Issue was closed"
 
 	case actionReopened:
 		issueTemplate = "reopenedIssue"
+		color = green
+		title = "Issue was reopened"
 
 	case actionLabeled:
 		issueTemplate = "issueLabelled"
+		color = lightBlue
+		title = "Issue was labeled"
 
 	default:
 		return
@@ -725,7 +735,18 @@ func (p *Plugin) postIssueEvent(event *github.IssuesEvent) {
 		}
 		renderedMessage = p.sanitizeDescription(renderedMessage)
 
-		post := p.makeBotPost(renderedMessage, "custom_git_issue")
+		post := p.makeBotPost("", "custom_git_issue")
+		attachment := &model.SlackAttachment{
+			Color:      color,
+			Text:       renderedMessage,
+			Title:      title,
+			Fallback:   renderedMessage,
+			AuthorName: event.GetSender().GetLogin(),
+			AuthorIcon: event.GetSender().GetAvatarURL(),
+			Footer:     event.GetRepo().GetFullName(),
+			FooterIcon: "https://slack-imgs.com/?c=1&o1=wi32.he32.si&url=https%3A%2F%2Fslack.github.com%2Fstatic%2Fimg%2Ffavicon-neutral.png",
+		}
+		post.AddProp(postPropAttachments, []*model.SlackAttachment{attachment})
 
 		repoName := strings.ToLower(repo.GetFullName())
 		issueNumber := issue.Number
@@ -960,7 +981,7 @@ func (p *Plugin) postIssueCommentEvent(event *github.IssueCommentEvent) {
 		attachment := &model.SlackAttachment{
 			Color:      gray,
 			Text:       message,
-			Title:      "Pull request commented",
+			Title:      "Issue commented",
 			Fallback:   message,
 			AuthorName: event.GetSender().GetLogin(),
 			AuthorIcon: event.GetSender().GetAvatarURL(),
@@ -1020,8 +1041,12 @@ func (p *Plugin) postPullRequestReviewEvent(event *github.PullRequestReviewEvent
 	switch eventState {
 	case "approved":
 	case "commented":
+		// skip notification about empty review
+		if event.GetReview().GetBody() == "" {
+			return
+		}
 		color = darkGray
-		title = "Pull request commented"
+		title = "Pull request review comment"
 	case "changes_requested":
 		color = red
 		title = "Pull request changes requested!"
@@ -1086,6 +1111,11 @@ func (p *Plugin) postPullRequestReviewEvent(event *github.PullRequestReviewEvent
 
 func (p *Plugin) postPullRequestReviewCommentEvent(event *github.PullRequestReviewCommentEvent) {
 	repo := event.GetRepo()
+	action := event.GetAction()
+
+	if action == actionDeleted {
+		return
+	}
 
 	subs := p.GetSubscribedChannelsForRepository(repo)
 	if len(subs) == 0 {
