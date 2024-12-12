@@ -75,7 +75,7 @@ export default class SidebarButtons extends React.PureComponent {
 
     openConnectWindow = (e) => {
         e.preventDefault();
-        window.open('/plugins/github/oauth/connect', 'Connect Mattermost to GitHub', 'height=570,width=520');
+        window.open('/plugins/github_evrone/oauth/connect', 'Connect Mattermost to GitHub', 'height=570,width=520');
     }
 
     openRHS = (rhsState) => {
@@ -105,7 +105,7 @@ export default class SidebarButtons extends React.PureComponent {
                         overlay={<Tooltip id='reviewTooltip'>{'Connect to your GitHub'}</Tooltip>}
                     >
                         <a
-                            href='/plugins/github/oauth/connect'
+                            href='/plugins/github_evrone/oauth/connect'
                             onClick={this.openConnectWindow}
                             style={button}
                         >
